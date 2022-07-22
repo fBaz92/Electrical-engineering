@@ -217,8 +217,8 @@ class Grid:
         self.Si = Si
         self.Pi = np.real(Si)
         self.Qi = -np.imag(Si)
-        self.Pg = self.Pi + self.Pl
-        self.Qg = self.Qi + self.Ql
+        self.Pg = self.Pi.reshape([-1,1]) + self.Pl.reshape([-1,1])
+        self.Qg = self.Qi.reshape([-1,1]) + self.Ql.reshape([-1,1])
 
     def loadflow(self, tol=1, maxIter=10000, BMva=100):
         self.iter = 0
@@ -257,8 +257,6 @@ class Grid:
                             self.nodes[n].vLf += 0.01
                         elif QG > self.nodes[n].Qmax/BMva:
                             self.nodes[n].vLf -= 0.01
-
-            voltageLf = [self.nodes[i].vLf for i in range(self.nb)]
 
             #calculate changes in specified active and reactive power
             dPa = Psp - P
@@ -347,11 +345,32 @@ class Grid:
                     k += 1
                 self.nodes[i].thetaLf = angles[i].item()
 
-            voltageLf = [self.nodes[i].vLf for i in range(self.nb)]
-            thetaLf = [self.nodes[i].thetaLf for i in range(self.nb)]
-
             tol = max(abs(M))
             self.tolerances.append((tol))
+            self.voltageLf = [self.nodes[i].vLf for i in range(self.nb)]
+            self.thetaLf = [self.nodes[i].thetaLf for i in range(self.nb)]
 
         #the iteration is over; calculate the power flow
         self.calculateLf()
+
+    def printResults(self):
+        print("Newton Raphson Results:")
+        print()
+        print('| Bus |    V     |  Angle   |      Injection      |      Generation     |          Load      |')
+        print('| No  |    pu    |  Degree  |     MW   |   MVar   |     MW   |  Mvar    |     MW  |     MVar |')
+        for i in range(self.nb):
+            print('| %3g | %8.3f | %8.3f | %8.3f | %8.3f | %8.3f | %8.3f |%8.3f | %8.3f |' % (i, self.nodes[i].vLf, self.nodes[i].thetaLf, self.Pi[i], self.Qi[i], self.Pg[i], self.Qg[i], self.Pl[i], self.Ql[i]))
+
+        print('----------------------------------------------------------------------------------------------')
+        print()
+        print("Line flows and losses:")
+        print()
+        print('|From  |To    |     P    |     Q    | From | To   |    P     |    Q     |     Line Loss       |')
+        print('|Bus   |Bus   |    MW    |    MVar  | Bus  | Bus  |    MW    |   MVar   |     MW   |    MVar  |')
+        for i in range(self.nl):
+            p = self.lines[i].fromNode.nodeNumber
+            q = self.lines[i].toNode.nodeNumber
+            print('| %4g | %4g | %8.2f | %8.2f | %4g | %4g | %8.2f | %8.2f | %8.2f | %8.2f |' % (p, q, self.Pij[p,q], self.Qij[p,q], q, p, self.Pij[q,p], self.Qij[q,p], self.Lpij[i], self.Lqij[i]))
+        print('----------------------------------------------------------------------------------------------')
+        print()
+        print('Total active losses: {active_power:.2f}, Total reactive losses: {reactive_power:.2f}'.format(active_power=sum(self.Lpij).item(), reactive_power=sum(self.Lqij).item()))
