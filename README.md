@@ -7,3 +7,9 @@ All projects developed in the Electrical energy engineering courses taken at the
 
 # Power systems
 4. Loadflow calculator: loadflow calculator implemented using Python. 
+
+# Electromagnetic fields
+5.
+
+# Electrical drives for automotive
+6.
