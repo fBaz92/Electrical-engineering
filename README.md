@@ -9,7 +9,7 @@ All projects developed in the Electrical energy engineering courses taken at the
 4. Loadflow calculator: loadflow calculator implemented using Python. 
 
 # Electromagnetic fields
-5.
+5. Electromagnetic_fields_CAD: numerical solution of electro static problems
 
 # Electrical drives for automotive
-6.
+6. 
