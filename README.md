@@ -7,10 +7,10 @@ All projects developed in the Electrical energy engineering courses taken at the
 4. Electromechanical_levitation: control of a electromechanical levitation system (Simulink)
 
 # Power systems
-4. Loadflow calculator: loadflow calculator implemented using Python. 
+5. Loadflow calculator: loadflow calculator implemented using Python. 
 
 # Electromagnetic fields
-5. Electromagnetic_fields_CAD: numerical solution of electro static problems (Matlab)
+6. Electromagnetic_fields_CAD: numerical solution of electro static problems (Matlab)
 
 # Electrical drives for automotive
-6. Electrified_BMW_series3: Simulink model of an electrified version of the BMW 3 series. An aerodynamic model of the vehicle and a discretization of the brushless electric machine was created. By providing a speed profile to the vehicle resulting from a possible urban use profile, the model calculates the resistant torque at the machine shaft and, from the discretization of the brushless machine, calculates the electrical consumption. The battery characteristic of the vehicle was also modeled to realistically estimate the actual consumption. 
+7. Electrified_BMW_series3: Simulink model of an electrified version of the BMW 3 series. An aerodynamic model of the vehicle and a discretization of the brushless electric machine was created. By providing a speed profile to the vehicle resulting from a possible urban use profile, the model calculates the resistant torque at the machine shaft and, from the discretization of the brushless machine, calculates the electrical consumption. The battery characteristic of the vehicle was also modeled to realistically estimate the actual consumption. 
