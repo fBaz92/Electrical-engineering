@@ -136,8 +136,8 @@ class Grid:
 
     @property
     def pv_nodes(self):
-        pq_nodes = [node for node in self.nodes if node.type == 2]
-        return pq_nodes
+        pv_nodes = [node for node in self.nodes if node.type == 2]
+        return pv_nodes
 
     def create_matrix(self):
         # off diagonal elements
