@@ -1,0 +1,16 @@
+clc
+clear
+
+%   File di dati per la simulazione di un inverter trifase
+
+%   Tensione d'ingresso
+Vd=800;
+% Resistenza di carico
+Rc=20;
+
+% Induttanza di carico
+Lc=10e-3;
+% Tempo ciclo
+Tc=100e-6;
+
+
