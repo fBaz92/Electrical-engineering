@@ -416,7 +416,7 @@ class Grid:
         angles = np.zeros((self.nb, 1))
         npv = len(self.pv_nodes)
         npq = len(self.pq_nodes)
-        self.tolerances = []
+        self.ac_errors = []
 
         while self.iter < 20 or (tol > 1e-5 and self.iter < maxIter):
             self.iter += 1
@@ -582,7 +582,7 @@ class Grid:
                 self.nodes[i].thetaLf = angles[i].item()
 
             tol = max(abs(M))
-            self.tolerances.append((tol))
+            self.ac_errors.append((tol))
             self.voltageLf = [self.nodes[i].vLf for i in range(self.nb)]
             self.thetaLf = [self.nodes[i].thetaLf for i in range(self.nb)]
 
@@ -653,3 +653,167 @@ class Grid:
                 active_power=sum(self.Lpij).item(), reactive_power=sum(self.Lqij).item()
             )
         )
+
+    def create_B_prime_matrix(self):
+        """
+        Creates the B' matrix for DC power flow.
+
+        The B' matrix is derived from the imaginary part of the admittance matrix,
+        with the slack bus row and column removed since its angle is fixed.
+
+        Returns:
+            numpy.ndarray: The B' matrix for DC power flow
+        """
+        # Initialize B' matrix with zeros
+        B_prime = np.zeros((self.nb, self.nb))
+
+        # Fill off-diagonal elements
+        for line in self.lines:
+            from_node = line.fromNode.nodeNumber
+            to_node = line.toNode.nodeNumber
+            x = line.x  # Reactance
+            B_prime[from_node, to_node] = -1 / x
+            B_prime[to_node, from_node] = B_prime[from_node, to_node]
+
+        # Fill diagonal elements
+        for i in range(self.nb):
+            B_prime[i, i] = -sum(B_prime[i, :])
+
+        # Remove slack bus rows and columns (assuming bus 0 is slack)
+        slack_buses = [node.nodeNumber for node in self.nodes if node.type == 1]
+        B_prime_reduced = np.delete(B_prime, slack_buses, axis=0)
+        B_prime_reduced = np.delete(B_prime_reduced, slack_buses, axis=1)
+
+        self.B_prime = B_prime
+        self.B_prime_reduced = B_prime_reduced
+
+        return B_prime_reduced
+
+    def dc_loadflow(self, BMva=100):
+        """
+        Performs DC power flow analysis.
+
+        DC power flow makes several simplifying assumptions:
+        1. Flat voltage profile (all voltages = 1.0 p.u.)
+        2. Negligible resistance (R ≈ 0)
+        3. Small angle differences between buses
+
+        This results in the linear equation: P = B' * θ
+
+        Args:
+            BMva (float): Base MVA for per-unit calculations. Default is 100 MVA.
+
+        Returns:
+            dict: A dictionary containing the DC power flow results:
+                - 'angles': Bus voltage angles in radians
+                - 'line_flows': Active power flows in each line
+                - 'line_losses': Active power losses in each line (always 0 in DC)
+        """
+        # Create B' matrix
+        B_prime_reduced = self.create_B_prime_matrix()
+
+        # Calculate power injection vector (P)
+        P = np.zeros(self.nb)
+        for i, node in enumerate(self.nodes):
+            P[i] = (node.PGi - node.PLi) / BMva
+
+        # Remove slack bus from power injection vector
+        slack_buses = [node.nodeNumber for node in self.nodes if node.type == 1]
+        P_reduced = np.delete(P, slack_buses)
+
+        # Solve for angles: θ = (B')^-1 * P
+        angles_reduced = np.linalg.solve(B_prime_reduced, P_reduced)
+
+        # Reconstruct full angle vector (with slack bus)
+        angles = np.zeros(self.nb)
+        j = 0
+        for i in range(self.nb):
+            if i in slack_buses:
+                angles[i] = 0  # Slack bus angle is 0
+            else:
+                angles[i] = angles_reduced[j]
+                j += 1
+
+        # Calculate line flows
+        line_flows = np.zeros(self.nl)
+        for i, line in enumerate(self.lines):
+            from_node = line.fromNode.nodeNumber
+            to_node = line.toNode.nodeNumber
+            x = line.x
+            line_flows[i] = (angles[from_node] - angles[to_node]) / x * BMva
+
+        # Calculate slack bus power (to balance the system)
+        slack_power = 0
+        for i, node in enumerate(self.nodes):
+            if node.type != 1:  # Not a slack bus
+                slack_power -= node.PGi - node.PLi
+
+        # Update the slack bus power generation
+        for node in self.nodes:
+            if node.type == 1:
+                node.PGi = slack_power  # Update the slack bus generation
+
+        # Store results
+        self.dc_angles = angles
+        self.dc_line_flows = line_flows
+        self.dc_line_losses = np.zeros(self.nl)  # In DC, losses are 0
+
+        # Calculate bus injections
+        bus_injections = np.zeros(self.nb)
+        for i in range(self.nb):
+            # Sum all outgoing line flows for each bus
+            for j, line in enumerate(self.lines):
+                if line.fromNode.nodeNumber == i:
+                    bus_injections[i] += line_flows[j]
+                elif line.toNode.nodeNumber == i:
+                    bus_injections[i] -= line_flows[j]
+
+        self.dc_bus_injections = bus_injections
+
+        # Prepare results dictionary
+        results = {
+            "angles": angles,
+            "line_flows": line_flows,
+            "line_losses": np.zeros(self.nl),
+            "bus_injections": bus_injections,
+        }
+
+        return results
+
+    def print_dc_results(self):
+        """
+        Prints the results of the DC power flow analysis in a formatted table.
+
+        This method should be called after running dc_loadflow() method.
+        """
+        if not hasattr(self, "dc_angles"):
+            print("DC power flow has not been run. Please run dc_loadflow() first.")
+            return
+
+        print("DC Power Flow Results:")
+        print()
+        print("| Bus |   Angle   |  Generation  |      Load     |")
+        print("| No  |   Degree  |      MW      |      MW       |")
+
+        for i in range(self.nb):
+            angle_deg = np.rad2deg(self.dc_angles[i])
+            print(
+                "| %3d | %9.3f | %12.3f | %12.3f |"
+                % (i, angle_deg, self.nodes[i].PGi, self.nodes[i].PLi)
+            )
+
+        print("--------------------------------------------------")
+        print()
+        print("Line flows:")
+        print()
+        print("|From  |To    |     P     |")
+        print("|Bus   |Bus   |     MW    |")
+
+        for i in range(self.nl):
+            p = self.lines[i].fromNode.nodeNumber
+            q = self.lines[i].toNode.nodeNumber
+            print("| %4d | %4d | %9.2f |" % (p, q, self.dc_line_flows[i]))
+
+        print("---------------------------")
+        print()
+        print("Total active losses: 0.00 (DC power flow assumes zero resistance)")
